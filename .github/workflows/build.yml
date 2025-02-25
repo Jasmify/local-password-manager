@@ -1,0 +1,55 @@
+name: Build and Release Tauri App
+
+on:
+  push:
+    tags:
+      - "v*.*.*" # v1.0.0 などのタグを push したら実行
+
+# リリースを作成するための権限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # フロントエンドのビルド（例: Node.js を使う場合）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Frontend Dependencies
+        run: npm install --legacy-peer-deps
+      - name: Build Frontend
+        run: npm run build
+
+      # Rust と Tauri のセットアップ
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # Tauri アプリのビルド
+      - name: Build Tauri App
+        run: cargo tauri build
+
+      # チェックサムの生成（Windows の場合は certutil コマンドを使用）
+      - name: Generate SHA256 Checksum
+        run: |
+          certutil -hashfile src-tauri/target/release/local-password-manager.exe SHA256 > src-tauri/target/release/local-password-manager.exe.sha256
+
+      # GitHub Releases へアップロード
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/release/local-password-manager.exe
+            src-tauri/target/release/local-password-manager.exe.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
